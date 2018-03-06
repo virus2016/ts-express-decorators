@@ -51,7 +51,7 @@ export class SocketIOService implements OnServerReady {
         const websockets: ProviderStorable<any>[] = [];
 
         ProviderRegistry.forEach((provider) => {
-            if (provider.store.has("socketIO")) {
+            if (provider.store.has("socketIO") && provider.store.get("socketIO").namespace !== undefined) {
                 websockets.push(provider);
             }
         });
@@ -70,24 +70,30 @@ export class SocketIOService implements OnServerReady {
         new SocketHandlersBuilder(provider).build(ws);
     }
 
+    /**
+     *
+     * @param {{info: (s: any) => void}} logger
+     */
     private printSocketEvents(logger: { info: (s: any) => void } = $log) {
         const list = this
             .getWebsocketServices()
             .reduce((acc: any[], provider) => {
-                const config: ISocketProviderMetadata = provider.store.get("socketIO");
+                const {handlers, namespace}: ISocketProviderMetadata = provider.store.get("socketIO");
 
-                Object.keys(config.handlers)
-                    .filter(key => key !== "$onConnection")
-                    .forEach((key: string) => {
-                        const handler = config.handlers[key];
-                        acc.push({
-                            namespace: config.namespace,
-                            inputEvent: handler.eventName,
-                            outputEvent: handler.returns && handler.returns.eventName || "",
-                            outputType: handler.returns && handler.returns.type || "",
-                            name: `${nameOf(provider.useClass)}.${handler.methodClassName}`
+                if (namespace) {
+                    Object.keys(handlers)
+                        .filter(key => key !== "$onConnection")
+                        .forEach((key: string) => {
+                            const handler = handlers[key];
+                            acc.push({
+                                namespace,
+                                inputEvent: handler.eventName,
+                                outputEvent: handler.returns && handler.returns.eventName || "",
+                                outputType: handler.returns && handler.returns.type || "",
+                                name: `${nameOf(provider.useClass)}.${handler.methodClassName}`
+                            });
                         });
-                    });
+                }
 
                 return acc;
             }, []);

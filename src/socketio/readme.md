@@ -80,6 +80,8 @@ export class MySocketService {
 [@Input](api/socketio/input.md) decorator declare a method as a new handler for a specific `event`.
 
 ```typescript
+import {SocketService, Input, Emit, Args, Socket, Nsp} from "@tsed/socketio";
+
 @SocketService("/my-namespace")
 export class MySocketService {
     @Input("eventName")
@@ -102,6 +104,8 @@ You have a many choice to send a response to your client. Ts.ED offer some decor
 Example:
 
 ```typescript
+import {SocketService, Input, Emit, Args, Socket, Nsp} from "@tsed/socketio";
+
 @SocketService("/my-namespace")
 export class MySocketService {
     @Input("eventName")
@@ -120,6 +124,8 @@ export class MySocketService {
 Ts.ED create a new session for each socket.
 
 ```typescript
+import {SocketService, Input, Emit, Args, SocketSession} from "@tsed/socketio";
+
 @SocketService("/my-namespace")
 export class MySocketService {
     @Input("eventName")

@@ -1,4 +1,4 @@
-import {ProviderStorable} from "@tsed/common";
+import {MiddlewareRegistry, MiddlewareType, ProviderStorable} from "@tsed/common";
 import {Store} from "@tsed/core";
 import * as SocketIO from "socket.io";
 import {$log} from "ts-log-debug";
@@ -97,41 +97,112 @@ export class SocketHandlersBuilder {
                 const handlerMetadata: ISocketHandlerMetadata = this.socketProviderMetadata.handlers[propertyKey];
                 const eventName = handlerMetadata.eventName;
 
-                socket.on(eventName, (...parameters: any[]) => {
-                    this.invoke(handlerMetadata, parameters, socket, nsp);
+                socket.on(eventName, (...args) => {
+                    this.runQeue(handlerMetadata, args, socket, nsp);
                 });
             });
     }
 
     /**
      *
-     * @returns {Promise<any>}
-     * @param handlerMetadata
+     * @param {ISocketHandlerMetadata} handlerMetadata
      * @param args
-     * @param socket
-     * @param nsp
+     * @param {SocketIO.Socket} socket
+     * @param {SocketIO.Namespace} nsp
+     * @returns {(parameters) => Promise<void>}
      */
-    private async invoke(handlerMetadata: ISocketHandlerMetadata, args: any[], socket: SocketIO.Socket, nsp: SocketIO.Namespace): Promise<void> {
+    private runQueue(handlerMetadata: ISocketHandlerMetadata, args: any[], socket: SocketIO.Socket, nsp: SocketIO.Namespace) {
+        const {returns} = handlerMetadata;
 
-        try {
-            const {instance} = this.provider;
-            const {methodClassName, returns} = handlerMetadata;
-            const scope: any = {args, socket, nsp};
-            const parameters = this.buildParameters(handlerMetadata.parameters, scope);
+        const p = Promise.resolve(args);
 
+        if (handlerMetadata.useBefore) {
+            handlerMetadata.useBefore.map((target) => this.bindMiddleware(target, p));
+        }
 
-            const result = await instance[methodClassName](...parameters);
-
+        p.then((args) => this.invoke(this.provider.instance, method, {args, socket, nsp}));
+        p.then((data) => {
             if (returns) {
-                SocketHandlersBuilder.sendResponse(returns.eventName, returns.type, result, scope);
+                SocketHandlersBuilder
+                    .sendResponse(returns.eventName, returns.type, data, {args, socket, nsp});
             }
-        } catch (er) {
+        });
+
+        if (handlerMetadata.useAfter) {
+            handlerMetadata.useAfter.map((target) => this.bindMiddleware(target, p));
+        }
+
+        return p.catch((er) => {
             /* istanbul ignore next */
             $log.error(handlerMetadata.eventName, er);
             /* istanbul ignore next */
             process.exit(-1);
-        }
+        });
+    }
 
+    /**
+     *
+     * @param target
+     * @param promise
+     * @returns {(args: any[]) => Promise<any[]>}
+     */
+    private bindMiddleware = (target, promise) => {
+        const middlewareProvider = MiddlewareRegistry.get(target);
+        const instance = middlewareMeta.instance;
+        const handlerMetadata: ISocketHandlerMetadata = Store.from(instance).get("socketIO");
+
+        if (middlewareProvider.type === MiddlewareType.ERROR) {
+            promise.catch((err) =>
+                this.invoke(instance, handlerMetadata, {err, socket, nsp})
+            );
+        } else {
+            promise.then(async (args: any[]) => {
+                const result = await this.invoke(instance, handlerMetadata, {args, socket, nsp});
+                return result === undefined ? args : result;
+            });
+        }
+    };
+    /**
+     *
+     * @param target
+     * @returns {(err, args: any[]) => Promise<any[]>}
+     */
+    private bindErrorMiddleware = (target) => {
+        const instance = MiddlewareRegistry.get(target).instance;
+        const middlewareMetadata: ISocketHandlerMetadata = Store.from(instance).get("socketIO");
+
+        return async (err, args: any[]) => {
+            const result = await this.invoke(instance, middlewareMetadata, {err, args, socket, nsp});
+            return result === undefined ? args : result;
+        };
+    };
+
+    /**
+     *
+     * @returns {Promise<any>}
+     * @param instance
+     * @param handlerMetadata
+     * @param scope
+     */
+    private async invoke(instance: any, handlerMetadata: ISocketHandlerMetadata, scope): Promise<void> {
+        const {methodClassName} = handlerMetadata;
+        const parameters = this.buildParameters(handlerMetadata.parameters, scope);
+
+        return await instance[methodClassName](...parameters);
+    }
+
+    private async invokeMiddleware(handlerMetadata: ISocketHandlerMetadata, scope: any): Promise<void> {
+
+        // try {
+        const {instance} = this.provider;
+        const {methodClassName, returns} = handlerMetadata;
+        const parameters = this.buildParameters(handlerMetadata.parameters, scope);
+
+        const result = await instance[methodClassName](...parameters);
+
+        if (returns) {
+            SocketHandlersBuilder.sendResponse(returns.eventName, returns.type, result, scope);
+        }
     }
 
     /**
