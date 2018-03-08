@@ -307,6 +307,16 @@ describe("ConverterService", () => {
             );
         });
 
+        describe("array", () => {
+            it("should convert array to an array (1)", () =>
+                expect(this.converterService.serialize([null])).to.deep.eq([null])
+            );
+
+            it("should convert array to an array (2)", () =>
+                expect(this.converterService.serialize([1])).to.deep.eq([1])
+            );
+        });
+
         describe("class Foo2", () => {
             before(() => {
                 const foo2 = new JsonFoo2();
