@@ -1,4 +1,3 @@
-import * as Express from "express";
 import {
     Authenticated,
     BodyParams,
@@ -8,6 +7,8 @@ import {
     Delete,
     Get,
     Header,
+    HeaderParams,
+    Intercept,
     Locals,
     PathParams,
     Post,
@@ -21,9 +22,10 @@ import {
     Use,
     UseAfter
 } from "@tsed/common";
-import {HeaderParams} from "@tsed/common";
 import {MultipartFile} from "@tsed/multipartfiles";
 import {Deprecated, Description, Returns, Security} from "@tsed/swagger";
+import * as Express from "express";
+import {PermissionInterceptor} from "../../interceptors/PermissionInterceptor";
 import {CalendarModel} from "../../models/Calendar";
 import {TokenService} from "../../services/TokenService";
 import {BaseController} from "../base/BaseController";
@@ -64,6 +66,7 @@ export class CalendarCtrl extends BaseController {
      * @returns {{id: any, name: string}}
      */
     @Get("/classic/:id")
+    @Intercept(PermissionInterceptor)
     public findClassic(request: any, response: any): CalendarModel {
         const model = new CalendarModel();
         model.id = request.params.id;

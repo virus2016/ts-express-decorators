@@ -1,4 +1,5 @@
-import {Inject, Service} from "@tsed/common";
+import {Inject, Intercept, Service} from "@tsed/common";
+import {PermissionInterceptor} from "../interceptors/PermissionInterceptor";
 import {CustomFactory} from "./CustomFactory";
 import {SanitizeService} from "./SanitizeService";
 
@@ -9,6 +10,11 @@ export class TokenService {
 
     constructor(private sanitize: SanitizeService,
                 @Inject(CustomFactory) private customFactory: CustomFactory) {
+
+    }
+
+    @Intercept(PermissionInterceptor)
+    method() {
 
     }
 
